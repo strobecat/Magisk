@@ -12,6 +12,7 @@ import com.topjohnwu.magisk.core.utils.MediaStoreUtils.checkSum
 import com.topjohnwu.magisk.core.utils.MediaStoreUtils.outputStream
 import com.topjohnwu.magisk.core.utils.ProgressInputStream
 import com.topjohnwu.magisk.data.repository.NetworkService
+import com.topjohnwu.magisk.ktx.inject
 import com.topjohnwu.magisk.ktx.withStreams
 import com.topjohnwu.magisk.view.Notifications
 import kotlinx.coroutines.CoroutineScope
@@ -19,8 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import okhttp3.ResponseBody
-import org.koin.android.ext.android.inject
-import org.koin.core.KoinComponent
+import org.koin.core.component.KoinComponent
 import timber.log.Timber
 import java.io.IOException
 import java.io.InputStream

@@ -6,13 +6,13 @@ import android.widget.TextView
 import com.topjohnwu.magisk.R
 import com.topjohnwu.magisk.data.repository.NetworkService
 import com.topjohnwu.magisk.ktx.coroutineScope
+import com.topjohnwu.magisk.ktx.inject
 import io.noties.markwon.Markwon
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.koin.core.KoinComponent
-import org.koin.core.inject
+import org.koin.core.component.KoinComponent
 import timber.log.Timber
 import kotlin.coroutines.coroutineContext
 

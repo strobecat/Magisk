@@ -14,10 +14,10 @@ import com.topjohnwu.magisk.core.download.Subject
 import com.topjohnwu.magisk.data.repository.NetworkService
 import com.topjohnwu.magisk.events.MagiskInstallFileEvent
 import com.topjohnwu.magisk.events.dialog.SecondSlotWarningDialog
+import com.topjohnwu.magisk.ktx.get
 import com.topjohnwu.magisk.utils.set
 import com.topjohnwu.superuser.Shell
 import kotlinx.coroutines.launch
-import org.koin.core.get
 import timber.log.Timber
 import java.io.IOException
 import kotlin.math.roundToInt

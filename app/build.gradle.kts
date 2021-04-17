@@ -15,19 +15,17 @@ kapt {
     javacOptions {
         option("-Xmaxerrs", 1000)
     }
+    arguments {
+        arg("room.incremental", "true")
+    }
 }
 
 android {
     defaultConfig {
         applicationId = "com.topjohnwu.magisk"
         vectorDrawables.useSupportLibrary = true
-        multiDexEnabled = true
         versionName = Config.appVersion
         versionCode = Config.appVersionCode
-
-        javaCompileOptions.annotationProcessorOptions.arguments(
-            mapOf("room.incremental" to "true")
-        )
     }
 
     buildTypes {
@@ -135,10 +133,9 @@ dependencies {
     implementation("com.github.topjohnwu.libsu:core:${vLibsu}")
     implementation("com.github.topjohnwu.libsu:io:${vLibsu}")
 
-    val vKoin = "2.1.6"
-    implementation("org.koin:koin-core:${vKoin}")
-    implementation("org.koin:koin-android:${vKoin}")
-    implementation("org.koin:koin-androidx-viewmodel:${vKoin}")
+    val vKoin = "2.2.2"
+    implementation("io.insert-koin:koin-android:${vKoin}")
+    implementation("io.insert-koin:koin-androidx-viewmodel:${vKoin}")
 
     val vRetrofit = "2.9.0"
     implementation("com.squareup.retrofit2:retrofit:${vRetrofit}")
@@ -154,7 +151,7 @@ dependencies {
     implementation("com.squareup.okhttp3:logging-interceptor:${vOkHttp}")
     implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:${vOkHttp}")
 
-    val vMoshi = "1.11.0"
+    val vMoshi = "1.12.0"
     implementation("com.squareup.moshi:moshi:${vMoshi}")
     kapt("com.squareup.moshi:moshi-kotlin-codegen:${vMoshi}")
 

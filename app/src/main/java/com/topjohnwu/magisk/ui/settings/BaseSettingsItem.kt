@@ -9,12 +9,12 @@ import androidx.databinding.Bindable
 import com.topjohnwu.magisk.BR
 import com.topjohnwu.magisk.R
 import com.topjohnwu.magisk.databinding.ObservableItem
+import com.topjohnwu.magisk.ktx.get
 import com.topjohnwu.magisk.utils.TransitiveText
 import com.topjohnwu.magisk.utils.asTransitive
 import com.topjohnwu.magisk.utils.set
 import com.topjohnwu.magisk.view.MagiskDialog
-import org.koin.core.KoinComponent
-import org.koin.core.get
+import org.koin.core.component.KoinComponent
 
 sealed class BaseSettingsItem : ObservableItem<BaseSettingsItem>() {
 
