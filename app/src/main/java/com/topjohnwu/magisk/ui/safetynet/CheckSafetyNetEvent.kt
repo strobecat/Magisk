@@ -7,6 +7,7 @@ import com.topjohnwu.magisk.arch.ViewEventWithScope
 import com.topjohnwu.magisk.core.Const
 import com.topjohnwu.magisk.data.repository.NetworkService
 import com.topjohnwu.magisk.ktx.DynamicClassLoader
+import com.topjohnwu.magisk.ktx.inject
 import com.topjohnwu.magisk.ktx.writeTo
 import com.topjohnwu.magisk.view.MagiskDialog
 import com.topjohnwu.superuser.Shell
@@ -16,8 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import org.koin.core.KoinComponent
-import org.koin.core.inject
+import org.koin.core.component.KoinComponent
 import timber.log.Timber
 import java.io.File
 import java.io.IOException
