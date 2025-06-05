@@ -7,8 +7,7 @@
 #include <functional>
 #include <memory>
 
-#include <mincrypt/sha.h>
-#include <mincrypt/sha256.h>
+#include <openssl/sha.h>
 #include <utils.hpp>
 
 #include "bootimg.hpp"
@@ -91,7 +90,7 @@ void dyn_img_hdr::print() {
             BOOT_ARGS_SIZE, cmdline(), BOOT_EXTRA_ARGS_SIZE, extra_cmdline());
     if (auto chksum = reinterpret_cast<uint8_t*>(id())) {
         fprintf(stderr, "%-*s [", PADDING, "CHECKSUM");
-        for (int i = 0; i < SHA256_DIGEST_SIZE; ++i)
+        for (int i = 0; i < SHA256_DIGEST_LENGTH; ++i)
             fprintf(stderr, "%02hhx", chksum[i]);
         fprintf(stderr, "]\n");
     }
@@ -288,7 +287,7 @@ void boot_img::parse_image(uint8_t *addr, format_t type) {
     }
 
     if (char *id = hdr->id()) {
-        for (int i = SHA_DIGEST_SIZE + 4; i < SHA256_DIGEST_SIZE; ++i) {
+        for (int i = SHA_DIGEST_LENGTH + 4; i < SHA256_DIGEST_LENGTH; ++i) {
             if (id[i]) {
                 flags[SHA256_FLAG] = true;
                 break;
@@ -631,35 +630,51 @@ void repack(const char *src_img, const char *out_img, bool skip_comp) {
 
     // Update checksum
     if (char *id = hdr->id()) {
-        HASH_CTX ctx;
-        boot.flags[SHA256_FLAG] ? SHA256_init(&ctx) : SHA_init(&ctx);
+        SHA256_CTX sha256;
+        SHA_CTX sha1;
+        if (boot.flags[SHA256_FLAG]) {
+            SHA256_Init(&sha256);
+        } else {
+            SHA1_Init(&sha1);
+        }
+#define HASH_UPDATE(PTR, SIZE) do { \
+    if (boot.flags[SHA256_FLAG]) \
+        SHA256_Update(&sha256, PTR, SIZE); \
+    else \
+        SHA1_Update(&sha1, PTR, SIZE); \
+} while (0);
         uint32_t size = hdr->kernel_size();
-        HASH_update(&ctx, new_addr + off.kernel, size);
-        HASH_update(&ctx, &size, sizeof(size));
+        HASH_UPDATE(new_addr + off.kernel, size);
+        HASH_UPDATE(&size, sizeof(size));
         size = hdr->ramdisk_size();
-        HASH_update(&ctx, new_addr + off.ramdisk, size);
-        HASH_update(&ctx, &size, sizeof(size));
+        HASH_UPDATE(new_addr + off.ramdisk, size);
+        HASH_UPDATE(&size, sizeof(size));
         size = hdr->second_size();
-        HASH_update(&ctx, new_addr + off.second, size);
-        HASH_update(&ctx, &size, sizeof(size));
+        HASH_UPDATE(new_addr + off.second, size);
+        HASH_UPDATE(&size, sizeof(size));
         size = hdr->extra_size();
         if (size) {
-            HASH_update(&ctx, new_addr + off.extra, size);
-            HASH_update(&ctx, &size, sizeof(size));
+            HASH_UPDATE(new_addr + off.extra, size);
+            HASH_UPDATE(&size, sizeof(size));
         }
         uint32_t ver = hdr->header_version();
         if (ver == 1 || ver == 2) {
             size = hdr->recovery_dtbo_size();
-            HASH_update(&ctx, new_addr + hdr->recovery_dtbo_offset(), size);
-            HASH_update(&ctx, &size, sizeof(size));
+            HASH_UPDATE(new_addr + hdr->recovery_dtbo_offset(), size);
+            HASH_UPDATE(&size, sizeof(size));
         }
         if (ver == 2) {
             size = hdr->dtb_size();
-            HASH_update(&ctx, new_addr + off.dtb, size);
-            HASH_update(&ctx, &size, sizeof(size));
+            HASH_UPDATE(new_addr + off.dtb, size);
+            HASH_UPDATE(&size, sizeof(size));
         }
+#undef HASH_UPDATE
         memset(id, 0, BOOT_ID_SIZE);
-        memcpy(id, HASH_final(&ctx), boot.flags[SHA256_FLAG] ? SHA256_DIGEST_SIZE : SHA_DIGEST_SIZE);
+        if (boot.flags[SHA256_FLAG]) {
+            SHA256_Final((uint8_t*)id, &sha256);
+        } else {
+            SHA1_Final((uint8_t*)id, &sha1);
+        }
     }
 
     // Print new header info
@@ -683,7 +698,7 @@ void repack(const char *src_img, const char *out_img, bool skip_comp) {
         auto d_hdr = reinterpret_cast<dhtb_hdr *>(new_addr);
         memcpy(d_hdr, DHTB_MAGIC, 8);
         d_hdr->size = off.total - sizeof(dhtb_hdr);
-        SHA256_hash(new_addr + sizeof(dhtb_hdr), d_hdr->size, d_hdr->checksum);
+        SHA256(new_addr + sizeof(dhtb_hdr), d_hdr->size, d_hdr->checksum);
     } else if (boot.flags[BLOB_FLAG]) {
         // Blob header
         auto b_hdr = reinterpret_cast<blob_hdr *>(new_addr);

@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
-#include <mincrypt/sha.h>
+#include <openssl/sha.h>
 #include <utils.hpp>
 
 #include "magiskboot.hpp"
@@ -140,11 +140,11 @@ int main(int argc, char *argv[]) {
         unlink(RECV_DTBO_FILE);
         unlink(DTB_FILE);
     } else if (argc > 2 && action == "sha1") {
-        uint8_t sha1[SHA_DIGEST_SIZE];
+        uint8_t sha1[SHA_DIGEST_LENGTH];
         void *buf;
         size_t size;
         mmap_ro(argv[2], buf, size);
-        SHA_hash(buf, size, sha1);
+        SHA1((uint8_t*)buf, size, sha1);
         for (uint8_t i : sha1)
             printf("%02x", i);
         printf("\n");

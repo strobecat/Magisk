@@ -48,7 +48,7 @@ ui_print "- Target image: $BOOTIMAGE"
 # Detect version and architecture
 api_level_arch_detect
 
-[ $API -lt 17 ] && abort "! Magisk only support Android 4.2 and above"
+[ $API -lt 18 ] && abort "! Magisk only support Android 4.3 and above"
 
 ui_print "- Device platform: $ARCH"
 
