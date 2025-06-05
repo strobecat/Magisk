@@ -232,7 +232,7 @@ def sign_zip(unsigned):
 
     if unsigned.endswith('.zip'):
         msg = '* Signing zip'
-        execArgs.extend(['--min-sdk-version', '17',
+        execArgs.extend(['--min-sdk-version', '18',
                          '--v2-signing-enabled', 'false',
                          '--v3-signing-enabled', 'false'])
 

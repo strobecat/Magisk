@@ -4,7 +4,8 @@ APP_CFLAGS := -Wall -Oz -fomit-frame-pointer -flto \
 APP_LDFLAGS := -flto
 APP_CPPFLAGS := -std=c++17
 APP_STL := c++_static
-APP_PLATFORM := android-16
+# BoringSSL requires getauxval in api 18
+APP_PLATFORM := android-18
 
 ifdef MAGISK_DEBUG
 APP_CFLAGS += -D__MDBG

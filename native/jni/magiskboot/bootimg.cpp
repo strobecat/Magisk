@@ -7,8 +7,7 @@
 #include <functional>
 #include <memory>
 
-#include <mincrypt/sha.h>
-#include <mincrypt/sha256.h>
+#include <openssl/sha.h>
 #include <utils.hpp>
 
 #include "bootimg.hpp"
@@ -95,7 +94,7 @@ void dyn_img_hdr::print() {
             BOOT_ARGS_SIZE, cmdline(), BOOT_EXTRA_ARGS_SIZE, extra_cmdline());
     if (auto chksum = reinterpret_cast<uint8_t*>(id())) {
         fprintf(stderr, "%-*s [", PADDING, "CHECKSUM");
-        for (int i = 0; i < SHA256_DIGEST_SIZE; ++i)
+        for (int i = 0; i < SHA256_DIGEST_LENGTH; ++i)
             fprintf(stderr, "%02hhx", chksum[i]);
         fprintf(stderr, "]\n");
     }
@@ -285,7 +284,7 @@ void boot_img::parse_image(uint8_t *addr, format_t type) {
     }
 
     if (char *id = hdr->id()) {
-        for (int i = SHA_DIGEST_SIZE + 4; i < SHA256_DIGEST_SIZE; ++i) {
+        for (int i = SHA_DIGEST_LENGTH + 4; i < SHA256_DIGEST_LENGTH; ++i) {
             if (id[i]) {
                 flags |= SHA256_FLAG;
                 break;
@@ -603,35 +602,43 @@ void repack(const char* src_img, const char* out_img, bool skip_comp) {
 
     // Update checksum
     if (char *id = boot.hdr->id()) {
-        HASH_CTX ctx;
-        is_flag(SHA256_FLAG) ? SHA256_init(&ctx) : SHA_init(&ctx);
-        uint32_t size = boot.hdr->kernel_size();
-        HASH_update(&ctx, boot.map_addr + off.kernel, size);
-        HASH_update(&ctx, &size, sizeof(size));
-        size = boot.hdr->ramdisk_size();
-        HASH_update(&ctx, boot.map_addr + off.ramdisk, size);
-        HASH_update(&ctx, &size, sizeof(size));
-        size = boot.hdr->second_size();
-        HASH_update(&ctx, boot.map_addr + off.second, size);
-        HASH_update(&ctx, &size, sizeof(size));
-        size = boot.hdr->extra_size();
-        if (size) {
-            HASH_update(&ctx, boot.map_addr + off.extra, size);
-            HASH_update(&ctx, &size, sizeof(size));
-        }
-        uint32_t ver = boot.hdr->header_version();
-        if (ver == 1 || ver == 2) {
-            size = boot.hdr->recovery_dtbo_size();
-            HASH_update(&ctx, boot.map_addr + boot.hdr->recovery_dtbo_offset(), size);
-            HASH_update(&ctx, &size, sizeof(size));
-        }
-        if (ver == 2) {
-            size = boot.hdr->dtb_size();
-            HASH_update(&ctx, boot.map_addr + off.dtb, size);
-            HASH_update(&ctx, &size, sizeof(size));
-        }
+#define DO_HASH(ctxname, prefix) do { \
+        ctxname ctx; \
+        prefix##_Init(&ctx); \
+        uint32_t size = boot.hdr->kernel_size(); \
+        prefix##_Update(&ctx, boot.map_addr + off.kernel, size); \
+        prefix##_Update(&ctx, &size, sizeof(size)); \
+        size = boot.hdr->ramdisk_size(); \
+        prefix##_Update(&ctx, boot.map_addr + off.ramdisk, size); \
+        prefix##_Update(&ctx, &size, sizeof(size)); \
+        size = boot.hdr->second_size(); \
+        prefix##_Update(&ctx, boot.map_addr + off.second, size); \
+        prefix##_Update(&ctx, &size, sizeof(size)); \
+        size = boot.hdr->extra_size(); \
+        if (size) { \
+            prefix##_Update(&ctx, boot.map_addr + off.extra, size); \
+            prefix##_Update(&ctx, &size, sizeof(size)); \
+        } \
+        uint32_t ver = boot.hdr->header_version(); \
+        if (ver == 1 || ver == 2) { \
+            size = boot.hdr->recovery_dtbo_size(); \
+            prefix##_Update(&ctx, boot.map_addr + boot.hdr->recovery_dtbo_offset(), size); \
+            prefix##_Update(&ctx, &size, sizeof(size)); \
+        } \
+        if (ver == 2) { \
+            size = boot.hdr->dtb_size(); \
+            prefix##_Update(&ctx, boot.map_addr + off.dtb, size); \
+            prefix##_Update(&ctx, &size, sizeof(size)); \
+        } \
+        prefix##_Final((uint8_t*)id, &ctx); \
+} while (0)
+
         memset(id, 0, BOOT_ID_SIZE);
-        memcpy(id, HASH_final(&ctx), is_flag(SHA256_FLAG) ? SHA256_DIGEST_SIZE : SHA_DIGEST_SIZE);
+        if (is_flag(SHA256_FLAG))
+            DO_HASH(SHA256_CTX, SHA256);
+        else
+            DO_HASH(SHA_CTX, SHA1);
+#undef DO_HASH
     }
 
     // Print new image info
@@ -645,7 +652,7 @@ void repack(const char* src_img, const char* out_img, bool skip_comp) {
         auto hdr = reinterpret_cast<dhtb_hdr *>(boot.map_addr);
         memcpy(hdr, DHTB_MAGIC, 8);
         hdr->size = off.total - sizeof(dhtb_hdr);
-        SHA256_hash(boot.map_addr + sizeof(dhtb_hdr), hdr->size, hdr->checksum);
+        SHA256(boot.map_addr + sizeof(dhtb_hdr), hdr->size, hdr->checksum);
     } else if (is_flag(BLOB_FLAG)) {
         // Blob header
         auto hdr = reinterpret_cast<blob_hdr *>(boot.map_addr);
