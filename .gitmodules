@@ -34,3 +34,6 @@
 [submodule "termux-elf-cleaner"]
 	path = tools/termux-elf-cleaner
 	url = https://github.com/termux/termux-elf-cleaner.git
+[submodule "boringssl"]
+	path = native/jni/external/boringssl
+	url = https://android.googlesource.com/platform/external/boringssl.git
