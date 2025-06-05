@@ -41,6 +41,7 @@ Supported actions:
     If '-n' is provided, it will not attempt to recompress ramdisk.cpio,
     otherwise it will compress ramdisk.cpio and kernel with the same method
     in <origbootimg> if the file provided is not already compressed.
+    Return 0 if succeeded, else return 1.
 
   hexpatch <file> <hexpattern1> <hexpattern2>
     Search <hexpattern1> in <file>, and replace with <hexpattern2>
@@ -175,9 +176,9 @@ int main(int argc, char *argv[]) {
         if (argv[2] == "-n"sv) {
             if (argc == 3)
                 usage(argv[0]);
-            repack(argv[3], argv[4] ? argv[4] : NEW_BOOT, true);
+            return repack(argv[3], argv[4] ? argv[4] : NEW_BOOT, true);
         } else {
-            repack(argv[2], argv[3] ? argv[3] : NEW_BOOT);
+            return repack(argv[2], argv[3] ? argv[3] : NEW_BOOT);
         }
     } else if (argc > 2 && action == "decompress") {
         decompress(argv[2], argv[3]);

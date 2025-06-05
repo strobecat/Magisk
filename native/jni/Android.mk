@@ -95,6 +95,7 @@ LOCAL_SRC_FILES := \
     magiskboot/dtb.cpp \
     magiskboot/ramdisk.cpp \
     magiskboot/pattern.cpp \
+    magiskboot/sprd_sign.c \
     utils/cpio.cpp
 
 LOCAL_LDLIBS := -lz

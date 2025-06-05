@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <utility>
 #include <bitset>
+#include <openssl/rsa.h>
 #include "format.hpp"
 
 /******************
@@ -39,6 +40,15 @@ struct blob_hdr {
     uint32_t offset;        /* offset in blob where this partition starts */
     uint32_t size;          /* Size of data */
     uint32_t version;       /* 0x00000001 */
+} __attribute__((packed));
+
+struct sprd_footer {
+    uint8_t magic[16];      /* All 0x00 */
+    uint64_t payload_size;
+    uint64_t payload_offset;
+    uint64_t crypted_hash_size;
+    uint64_t crypted_hash_offset;
+    uint8_t unknown[48];   /* Should be all 0x00 */
 } __attribute__((packed));
 
 /**************
@@ -439,6 +449,7 @@ enum {
     MTK_RAMDISK,
     CHROMEOS_FLAG,
     DHTB_FLAG,
+    SPRDFOOTER_FLAG,
     SEANDROID_FLAG,
     LG_BUMP_FLAG,
     SHA256_FLAG,

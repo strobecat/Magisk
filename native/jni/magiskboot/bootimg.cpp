@@ -1,3 +1,5 @@
+#include <alloca.h>
+#include <errno.h>
 #include <sys/mman.h>
 #include <string.h>
 #include <stdlib.h>
@@ -8,11 +10,14 @@
 #include <memory>
 
 #include <openssl/sha.h>
+#include <openssl/rsa.h>
 #include <utils.hpp>
 
 #include "bootimg.hpp"
 #include "magiskboot.hpp"
 #include "compress.hpp"
+#include "magiskboot/format.hpp"
+#include "sprd_sign.h"
 
 using namespace std;
 
@@ -167,7 +172,6 @@ boot_img::boot_img(const char *image) {
             break;
         case DHTB:
             flags[DHTB_FLAG] = true;
-            flags[SEANDROID_FLAG] = true;
             fprintf(stderr, "DHTB_HDR\n");
             addr += sizeof(dhtb_hdr) - 1;
             break;
@@ -357,6 +361,18 @@ void boot_img::parse_image(uint8_t *addr, format_t type) {
         } else if (tail_size >= 16 && BUFFER_MATCH(tail, LG_BUMP_MAGIC)) {
             fprintf(stderr, "LG_BUMP_IMAGE\n");
             flags[LG_BUMP_FLAG] = true;
+        } else if (
+            tail_size >= 96
+            // Invalid magic
+            && BUFFER_MATCH(tail, memset(alloca(17), '\0', 17))
+            // struct sprd_footer
+            && *(uint64_t*)(tail+16) == off
+            && *(uint64_t*)(tail+16+8) == sizeof(dhtb_hdr)
+        ) {
+            fprintf(stderr, "SPRDFOOTER\n");
+            flags[SPRDFOOTER_FLAG] = true;
+        } else {
+            flags[UNKNOWN] = true;
         }
 
         // Find AVB structures
@@ -366,6 +382,7 @@ void boot_img::parse_image(uint8_t *addr, format_t type) {
             void *footer = tail + tail_size - sizeof(AvbFooter);
             if (BUFFER_MATCH(footer, AVB_FOOTER_MAGIC)) {
                 fprintf(stderr, "VBMETA\n");
+                if (flags[UNKNOWN]) flags[UNKNOWN] = false;
                 flags[AVB_FLAG] = true;
                 avb_meta = reinterpret_cast<AvbVBMetaImageHeader*>(meta);
                 avb_footer = reinterpret_cast<AvbFooter*>(footer);
@@ -448,9 +465,13 @@ int unpack(const char *image, bool skip_decomp, bool hdr) {
 #define file_align() \
 write_zero(fd, align_off(lseek(fd, 0, SEEK_CUR) - off.header, boot.hdr->page_size()))
 
-void repack(const char *src_img, const char *out_img, bool skip_comp) {
+int repack(const char *src_img, const char *out_img, bool skip_comp) {
     const boot_img boot(src_img);
     fprintf(stderr, "Repack to boot image: [%s]\n", out_img);
+    if (boot.flags[UNKNOWN]) {
+        fputs("Cannot sign sprd_sign: unknown footer found", stderr);
+        return 1;
+    }
 
     struct {
         uint32_t header;
@@ -582,6 +603,40 @@ void repack(const char *src_img, const char *out_img, bool skip_comp) {
         }
     } else if (boot.flags[LG_BUMP_FLAG]) {
         xwrite(fd, LG_BUMP_MAGIC, 16);
+    } else if (boot.flags[SPRDFOOTER_FLAG]) {
+        auto orig_hdr = reinterpret_cast<dhtb_hdr *>(boot.map_addr);
+        auto orig_footer = reinterpret_cast<sprd_footer *>(
+            boot.map_addr + sizeof(dhtb_hdr) + orig_hdr->size
+        );
+        size_t unknown = sizeof(orig_footer->unknown);
+        if (
+            // data found in unknown part, don't know how to process
+            !BUFFER_MATCH(orig_footer->unknown, memset(alloca(unknown + 1), '\0', unknown + 1))
+            // unknown crypted hash
+            || orig_footer->crypted_hash_size != sizeof(sprd_crypted_hash)
+        ) {
+            fputs("Cannot sign sprd_sign: unknown crypted hash type", stderr);
+            goto fail;
+        }
+        write_zero(fd, sizeof(sprd_footer)); // will processed later
+
+        auto orig_crypted_hash = reinterpret_cast<sprd_crypted_hash *>(
+            boot.map_addr + orig_footer->crypted_hash_offset
+        );
+        RSA *key = public_key_from_info(&orig_crypted_hash->rsa_info);
+
+        // unknown crypted hash
+        if (
+            !key
+            || !is_key_supported(key)
+            || !verify_crypted_hash(orig_crypted_hash, key)
+        ) {
+            if (key) RSA_free(key);
+            fputs("Cannot sign sprd_sign: unsupported key or signature method", stderr);
+            goto fail;
+        }
+        RSA_free(key);
+        xwrite(fd, orig_crypted_hash, orig_footer->crypted_hash_size);  // somethings'll be changed too
     }
 
     off.total = lseek(fd, 0, SEEK_CUR);
@@ -683,6 +738,11 @@ void repack(const char *src_img, const char *out_img, bool skip_comp) {
     // Copy main header
     memcpy(new_addr + off.header, hdr->raw_hdr(), hdr->hdr_size());
 
+    // SPRD doesn't include sign footer in total size
+    if (boot.flags[SPRDFOOTER_FLAG]) {
+        off.total -= sizeof(sprd_footer) + sizeof(sprd_crypted_hash);
+    }
+
     if (boot.flags[AVB_FLAG]) {
         // Copy and patch AVB structures
         auto footer = reinterpret_cast<AvbFooter*>(new_addr + new_size - sizeof(AvbFooter));
@@ -698,12 +758,35 @@ void repack(const char *src_img, const char *out_img, bool skip_comp) {
         auto d_hdr = reinterpret_cast<dhtb_hdr *>(new_addr);
         memcpy(d_hdr, DHTB_MAGIC, 8);
         d_hdr->size = off.total - sizeof(dhtb_hdr);
-        SHA256(new_addr + sizeof(dhtb_hdr), d_hdr->size, d_hdr->checksum);
+        if (!boot.flags[SPRDFOOTER_FLAG])
+            SHA256(new_addr + sizeof(dhtb_hdr), d_hdr->size, d_hdr->checksum);
     } else if (boot.flags[BLOB_FLAG]) {
         // Blob header
         auto b_hdr = reinterpret_cast<blob_hdr *>(new_addr);
         b_hdr->size = off.total - sizeof(blob_hdr);
     }
 
+    if (boot.flags[SPRDFOOTER_FLAG]) {
+        auto d_footer = reinterpret_cast<sprd_footer *>(new_addr + off.total);
+        auto d_crypted_hash = reinterpret_cast<sprd_crypted_hash *>(new_addr + off.total + sizeof(sprd_footer));
+        d_footer->payload_offset = sizeof(dhtb_hdr);
+        d_footer->payload_size = off.total - sizeof(dhtb_hdr);
+        d_footer->crypted_hash_offset = off.total + sizeof(sprd_footer);
+        d_footer->crypted_hash_size = sizeof(sprd_crypted_hash);
+        SHA256(new_addr + sizeof(dhtb_hdr), d_footer->payload_size, d_crypted_hash->hash);
+        signature_crypted_hash(d_crypted_hash, NULL);
+        if (!verify_crypted_hash(d_crypted_hash, NULL))
+        {
+            fputs("Post verification failed", stderr);
+            munmap(new_addr, new_size);
+            return 1;
+        }
+    }
+
     munmap(new_addr, new_size);
+    return 0;
+fail:
+    if (fcntl(fd, F_GETFD) != -1 || errno != EBADF)
+        close(fd);
+    return 1;
 }
