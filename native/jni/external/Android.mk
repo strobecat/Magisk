@@ -370,6 +370,26 @@ LOCAL_SRC_FILES := \
     xhook/libxhook/jni/xh_elf.c
 include $(BUILD_STATIC_LIBRARY)
 
+include $(CLEAR_VARS)
+LOCAL_MODULE:= libcrypto
+LOCAL_CONLYFLAGS := -std=c11
+LOCAL_CPPFLAGS:= -Wall -Werror
+LOCAL_CFLAGS:= \
+    -fvisibility=hidden \
+    -DBORINGSSL_SHARED_LIBRARY \
+    -DBORINGSSL_IMPLEMENTATION \
+    -DOPENSSL_SMALL \
+    -D_XOPEN_SOURCE=700 \
+    -Wno-unused-parameter
+LOCAL_CFLAGS += -I$(LOCAL_PATH)/boringssl/src/include -I$(LOCAL_PATH)/boringssl/src/crypto -Wno-unused-parameter -DBORINGSSL_ANDROID_SYSTEM
+LOCAL_ASFLAGS += -I$(LOCAL_PATH)/boringssl/src/include -I$(LOCAL_PATH)/boringssl/src/crypto -Wno-unused-parameter
+LOCAL_EXPORT_C_INCLUDES:= $(LOCAL_PATH)/boringssl/src/include
+# sha256-armv4.S does not compile with clang.
+LOCAL_CLANG_ASFLAGS_arm += -no-integrated-as
+LOCAL_CLANG_ASFLAGS_arm64 += -march=armv8-a+crypto
+LOCAL_SRC_FILES := $(shell $(LOCAL_PATH)/boringssl_src.py)
+include $(BUILD_STATIC_LIBRARY)
+
 CWD := $(LOCAL_PATH)
 include $(CWD)/systemproperties/Android.mk
 include $(CWD)/mincrypt/Android.mk
