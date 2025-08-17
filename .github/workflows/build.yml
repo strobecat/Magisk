@@ -2,7 +2,7 @@ name: Magisk Build
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, '22.1' ]
     paths:
       - 'app/**'
       - 'native/**'
@@ -11,7 +11,7 @@ on:
       - 'build.py'
       - 'gradle.properties'
   pull_request:
-    branches: [ master ]
+    branches: [ master, '22.1' ]
   workflow_dispatch:
 
 jobs:
@@ -21,24 +21,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, windows-latest, macOS-latest ]
+        os: [ ubuntu-latest, windows-latest, macOS-13 ]
 
     steps:
       - name: Check out
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: 'recursive'
           fetch-depth: 0
 
       - name: Set up JDK 11
-        uses: actions/setup-java@v1
+        uses: actions/setup-java@v4
         with:
           java-version: '11'
+          distribution: 'temurin'
 
       - name: Set up Python 3
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.11'
 
       - name: Set up GitHub env (Windows)
         if: runner.os == 'Windows'
@@ -56,7 +57,7 @@ jobs:
           echo MAGISK_NDK_VERSION=$ndk_ver >> $GITHUB_ENV
 
       - name: Cache Gradle
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
@@ -66,7 +67,7 @@ jobs:
 
       - name: Cache NDK
         id: ndk-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: ${{ env.ANDROID_SDK_ROOT }}/ndk/magisk
           key: ${{ runner.os }}-ndk-${{ env.MAGISK_NDK_VERSION }}
@@ -84,7 +85,7 @@ jobs:
       # Only upload artifacts built on Linux
       - name: Upload build artifact
         if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ github.sha }}
           path: out
