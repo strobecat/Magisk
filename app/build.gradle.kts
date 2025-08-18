@@ -25,6 +25,7 @@ android {
     defaultConfig {
         applicationId = "com.topjohnwu.magisk"
         vectorDrawables.useSupportLibrary = true
+        multiDexEnabled = true
         versionName = Config.version
         versionCode = Config.versionCode
         ndk.abiFilters("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
