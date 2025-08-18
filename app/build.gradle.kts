@@ -24,6 +24,7 @@ android {
     defaultConfig {
         applicationId = "com.topjohnwu.magisk"
         vectorDrawables.useSupportLibrary = true
+        multiDexEnabled = true
         versionName = Config.appVersion
         versionCode = Config.appVersionCode
     }
