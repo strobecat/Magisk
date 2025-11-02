@@ -40,7 +40,6 @@ struct blob_hdr {
     uint32_t version;       /* 0x00000001 */
 } __attribute__((packed));
 
-
 /*********************
  * Boot Image Headers
  *********************/
@@ -393,6 +392,7 @@ struct dyn_img_vnd_v3 : public dyn_img_hdr {
 #define BLOB_FLAG       (1 << 7)
 #define NOOKHD_FLAG     (1 << 8)
 #define ACCLAIM_FLAG    (1 << 9)
+#define SPRD_V2_FLAG    (1 << 9)
 
 struct boot_img {
     // Memory map of the whole image

@@ -13,6 +13,7 @@
 #include "bootimg.hpp"
 #include "magiskboot.hpp"
 #include "compress.hpp"
+#include "sprd_sign.h"
 
 using namespace std;
 
@@ -170,7 +171,7 @@ boot_img::boot_img(const char *image) {
             addr += 65535;
             break;
         case DHTB:
-            flags |= (DHTB_FLAG | SEANDROID_FLAG);
+            flags |= DHTB_FLAG;
             fprintf(stderr, "DHTB_HDR\n");
             addr += sizeof(dhtb_hdr) - 1;
             break;
@@ -308,11 +309,26 @@ void boot_img::parse_image(uint8_t *addr, format_t type) {
         tail_size = map_size - (tail - map_addr);
     }
 
-    // Check tail info, currently only for LG Bump and Samsung SEANDROIDENFORCE
+    // Check tail info, currently only for LG Bump and Samsung SEANDROIDENFORCE and SPRD v2 sign
     if (tail_size >= 16 && memcmp(tail, SEANDROID_MAGIC, 16) == 0) {
         flags |= SEANDROID_FLAG;
     } else if (tail_size >= 16 && memcmp(tail, LG_BUMP_MAGIC, 16) == 0) {
         flags |= LG_BUMP_FLAG;
+    } else if (tail_size >= 96 && memcmp(tail, SPRD_FOOTER_MAGIC, 16) == 0) {
+        auto footer = reinterpret_cast<sprd_footer *>(tail);
+        if (footer->payload_size == off &&
+            footer->payload_offset == sizeof(dhtb_hdr) &&
+            sprdsign_check_footer(footer, off, map_size)) {
+            auto signature = reinterpret_cast<sprd_content_signature *>(map_addr + footer->signature_offset);
+            RSA *key = sprdsign_get_default_privkey();
+            if (!key) {
+                fputs("Internal error", stderr);
+                exit(1);
+            }
+            if (sprdsign_verify_signature(signature, key))
+                flags |= SPRD_V2_FLAG;
+            RSA_free(key);
+        }
     }
 
     if (int dtb_off = find_dtb_offset(kernel, hdr->kernel_size()); dtb_off > 0) {
@@ -564,6 +580,18 @@ void repack(const char* src_img, const char* out_img, bool skip_comp) {
     if (is_flag(LG_BUMP_FLAG)) {
         restore_buf(fd, LG_BUMP_MAGIC, 16);
     }
+    if (is_flag(SPRD_V2_FLAG)) {
+        auto orig_hdr = reinterpret_cast<dhtb_hdr *>(boot.map_addr);
+        auto orig_footer = reinterpret_cast<sprd_footer *>(
+            boot.map_addr + sizeof(dhtb_hdr) + orig_hdr->size
+        );
+        auto orig_signature = reinterpret_cast<sprd_content_signature *>(
+            boot.map_addr + orig_footer->signature_offset
+        );
+        // will be processed later
+        write_zero(fd, sizeof(sprd_footer));
+        restore_buf(fd, orig_signature, sizeof(sprd_content_signature));
+    }
 
     off.total = lseek(fd, 0, SEEK_CUR);
 
@@ -652,10 +680,32 @@ void repack(const char* src_img, const char* out_img, bool skip_comp) {
         auto hdr = reinterpret_cast<dhtb_hdr *>(boot.map_addr);
         memcpy(hdr, DHTB_MAGIC, 8);
         hdr->size = off.total - sizeof(dhtb_hdr);
-        SHA256(boot.map_addr + sizeof(dhtb_hdr), hdr->size, hdr->checksum);
+        if (is_flag(SPRD_V2_FLAG))
+            hdr->size -= sizeof(sprd_footer) + sizeof(sprd_content_signature);
+        else
+            SHA256(boot.map_addr + sizeof(dhtb_hdr), hdr->size, hdr->checksum);
     } else if (is_flag(BLOB_FLAG)) {
         // Blob header
         auto hdr = reinterpret_cast<blob_hdr *>(boot.map_addr);
         hdr->size = off.total - sizeof(blob_hdr);
+    }
+    if (is_flag(SPRD_V2_FLAG)) {
+        auto payload_size = off.total - sizeof(dhtb_hdr) - sizeof(sprd_footer) - sizeof(sprd_content_signature);
+        auto footer_addr = boot.map_addr + off.total - sizeof(sprd_footer) - sizeof(sprd_content_signature);
+        auto d_footer = reinterpret_cast<sprd_footer *>(footer_addr);
+        auto d_signature = reinterpret_cast<sprd_content_signature *>(footer_addr + sizeof(sprd_footer));
+        d_footer->payload_offset = sizeof(dhtb_hdr);
+        d_footer->payload_size = payload_size;
+        d_footer->signature_offset = off.total - sizeof(sprd_content_signature);
+        d_footer->signature_size = sizeof(sprd_content_signature);
+        SHA256(boot.map_addr + sizeof(dhtb_hdr), payload_size, d_signature->checksum);
+
+        RSA *key = sprdsign_get_default_privkey();
+        if (!key) {
+            fputs("Internal error", stderr);
+            exit(1);
+        }
+        sprdsign_sign_signature(d_signature, key);
+        RSA_free(key);
     }
 }
