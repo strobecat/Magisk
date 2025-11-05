@@ -9,6 +9,7 @@
 
 #include "magiskboot.hpp"
 #include "compress.hpp"
+#include "sprd_sign.h"
 
 using namespace std;
 
@@ -88,6 +89,11 @@ Supported actions:
   sha1 <file>
     Print the SHA1 checksum for <file>
 
+  verifysprd <file>
+    Verify if a file is validly signed with SPRD v2 using default key.
+    Return values:
+    0:valid    1:error
+
   cleanup
     Cleanup the current working directory
 
@@ -145,6 +151,16 @@ int main(int argc, char *argv[]) {
             printf("%02x", i);
         printf("\n");
         munmap(buf, size);
+    } else if (argc > 2 && action == "verifysprd") {
+        RSA *key = sprdsign_get_default_privkey();
+        if (!key)
+            return 1;
+        void *buf;
+        size_t size;
+        mmap_ro(argv[2], buf, size);
+        int result = sprdsign_verify(buf, size, key);
+        munmap(buf, size);
+        return result == 0;
     } else if (argc > 2 && action == "split") {
         return split_image_dtb(argv[2]);
     } else if (argc > 2 && action == "unpack") {

@@ -94,6 +94,11 @@ Supported actions:
   sha1 <file>
     Print the SHA1 checksum for <file>
 
+  verifysprd <file>
+    Verify if a file is validly signed with SPRD v2 using default key.
+    Return values:
+    0:valid    1:error
+
   cleanup
     Cleanup the current working directory
 

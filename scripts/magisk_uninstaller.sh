@@ -131,6 +131,8 @@ case $((STATUS & 3)) in
       ./magiskboot repack $BOOTIMAGE
       # Sign chromeos boot
       $CHROMEOS && sign_chromeos
+      # Verify SPRD sign
+      ./magiskboot verifysprd "new-boot.img" || abort "! Failed to sign boot image!"
       ui_print "- Flashing restored boot image"
       flash_image new-boot.img $BOOTIMAGE || abort "! Insufficient partition size"
     fi

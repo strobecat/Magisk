@@ -40,6 +40,7 @@ struct blob_hdr {
     uint32_t version;       /* 0x00000001 */
 } __attribute__((packed));
 
+
 /*********************
  * Boot Image Headers
  *********************/

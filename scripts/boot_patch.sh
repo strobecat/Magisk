@@ -180,5 +180,8 @@ ui_print "- Repacking boot image"
 # Sign chromeos boot
 $CHROMEOS && sign_chromeos
 
+# Verify SPRD sign
+./magiskboot verifysprd "new-boot.img" || abort "! Failed to sign boot image!"
+
 # Reset any error code
 true
